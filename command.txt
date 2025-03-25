@@ -1,0 +1,8 @@
+uv sync
+. .venv/bin/activate
+uv python pin 3.12
+
+uv add "deepgram-sdk==3.10.1"
+uv add python-dotenv
+uv add pandas
+uv add ipykernel
