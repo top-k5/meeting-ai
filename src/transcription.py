@@ -1,6 +1,6 @@
 import os
 import time
-from src.config import *
+from .config import *
 import pandas as pd
 
 from deepgram import (
@@ -11,7 +11,7 @@ from deepgram import (
 
 def transcribe(audio_file_path: str):
     deepgram_client = DeepgramClient(DEEPGRAM_API_KEY)
-    base_name = os.path.basename(audio_file_path)
+    base_name = os.path.basename(audio_file_path).split('.')[0]
 
     try:
         print(f'ファイル読み込み中: {base_name}')
@@ -47,7 +47,6 @@ def transcribe(audio_file_path: str):
 
     df_structured = pd.DataFrame(response.results.utterances)
     df_structured.drop(columns=["channel",  "words", "sentiment", "sentiment_score", "id"], inplace=True)
-    
-    print(f'文字起こし結果を保存中...')
-    df_structured.to_csv(f"{OUTPUT_DIR}/structured_{base_name}.csv", index=False)
 
+    print(f'文字起こし結果を保存中...')
+    df_structured.to_csv(f"{PROCESSED_DIR}/structured_{base_name}.csv", index=False)

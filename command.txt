@@ -6,3 +6,7 @@ uv add "deepgram-sdk==3.10.1"
 uv add python-dotenv
 uv add pandas
 uv add ipykernel
+uv add openai
+uv add langchain
+uv add langchain-community
+uv add langchain-openai
