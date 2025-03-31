@@ -42,14 +42,16 @@ def transcribe_deepgram(audio_file_path: str):
         run_time = end_time - start_time
         print(f"実行時間: {run_time:.2f}秒")
 
+        # 文字起こし結果を保存
+        df_structured = pd.DataFrame(response.results.utterances)
+        df_structured.drop(columns=["channel",  "words", "sentiment", "sentiment_score", "id"], inplace=True)
+
+        print(f'文字起こし結果を保存中...')
+        df_structured.to_csv(f"{PROCESSED_DIR}/structured_{base_name}.csv", index=False)
+
     except Exception as e:
         print(f"Exception: {e}")
 
-    df_structured = pd.DataFrame(response.results.utterances)
-    df_structured.drop(columns=["channel",  "words", "sentiment", "sentiment_score", "id"], inplace=True)
-
-    print(f'文字起こし結果を保存中...')
-    df_structured.to_csv(f"{PROCESSED_DIR}/structured_{base_name}.csv", index=False)
 
 # OpenAIを使用した文字起こし
 def transcribe_openai(audio_file_path: str, model: str = "gpt-4o-mini-transcribe"):
@@ -62,7 +64,7 @@ def transcribe_openai(audio_file_path: str, model: str = "gpt-4o-mini-transcribe
         start_time = time.perf_counter()
         print(f'文字起こし中...')
         # 結果を取得
-        client = OpenAI() # なぜかapi_keyを設定してなくても使える、、、
+        client = OpenAI(api_key=OPENAI_API_KEY)
         prompt = "この音声は、WEB会議（Teasm）の音声（日本語）です。「えー」「えっと」「えーっと」「あー」「そのー」「んーと」などのような、フィラーや言葉のひげと呼ばれる音声も省略せずに、発言を全てを文字起こししてください。"
 
         # promptを指定すると、文字起こしがむしろ省略されてしまうことあり、特にwhisper-1
@@ -78,7 +80,8 @@ def transcribe_openai(audio_file_path: str, model: str = "gpt-4o-mini-transcribe
         run_time = end_time - start_time
         print(f"実行時間: {run_time:.2f}秒")
 
+        print(transcription)
+
     except Exception as e:
         print(f"Exception: {e}")
     
-    print(transcription)
