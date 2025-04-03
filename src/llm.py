@@ -17,18 +17,21 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
+def read_transcription(file_name: str):
+    if file_name.endswith(".csv"):
+        return pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
+    elif file_name.endswith('.xlsx'):
+        return pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
+    else:
+        raise ValueError(f"Invalid file extension: {file_name}")
+    
 ########################################################
 # 結論ファーストの判定
 ########################################################
 def judge_conclusion_first(file_name: str):
     # 文字起こしデータの読み込み
     print(f"文字起こしデータの読み込み中...")
-    if file_name.endswith(".csv"):
-        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
-    elif file_name.endswith('.xlsx'):
-        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
-    else:
-        raise ValueError(f"Invalid file extension: {file_name}")
+    df_transcription = read_transcription(file_name)
     
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
@@ -70,12 +73,7 @@ def judge_conclusion_first(file_name: str):
 def judge_filler(file_name: str):
     # 文字起こしデータの読み込み
     print(f"文字起こしデータの読み込み中...")
-    if file_name.endswith(".csv"):
-        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
-    elif file_name.endswith('.xlsx'):
-        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
-    else:
-        raise ValueError(f"Invalid file extension: {file_name}")
+    df_transcription = read_transcription(file_name)
     
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
@@ -134,12 +132,7 @@ def judge_filler(file_name: str):
 def judge_understood(file_name: str):
     # 文字起こしデータの読み込み
     print(f"文字起こしデータの読み込み中...")
-    if file_name.endswith(".csv"):
-        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
-    elif file_name.endswith('.xlsx'):
-        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
-    else:
-        raise ValueError(f"Invalid file extension: {file_name}")
+    df_transcription = read_transcription(file_name)
 
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
@@ -182,3 +175,55 @@ def judge_understood(file_name: str):
 
     print(f"結果を保存中...")
     df_transcription.to_csv(f"{RESULT_DIR}/{file_name.split('.')[0]}_understood.csv", index=False)
+
+########################################################
+# 逸脱の判定
+########################################################
+def judge_deviation(file_name: str):
+    # 文字起こしデータの読み込み
+    print(f"文字起こしデータの読み込み中...")
+    df_transcription = read_transcription(file_name)
+
+    # プロンプトテンプレートの作成
+    template = ChatPromptTemplate([
+        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言履歴を元に、判定対象の発言が、逸脱のきっかけとなる発言であるかどうかを判定してください。さらに、判定対象の発言が本題から逸脱した内容であるかどうかも判定してください。なお、本題からの逸脱とは、会議の進行において必要のない発言のことであり、その判断材料として判定対象の発言以前の会話履歴がuserから与えられます。\n{format_instructions}"),
+        ("human", "判定対象の発言以前の会話履歴：\n{history}\n判定対象の発言：\n{target}"),
+    ])
+    # モデルの設定
+    model = ChatOpenAI(model_name="gpt-4o-mini", openai_api_key= OPENAI_API_KEY)
+    # 出力形式の設定
+    deviation_init_schema = ResponseSchema(name="deviation_init_flg", description="2値の逸脱きっかけフラグ。判定対象の発言が逸脱のきっかけとなる発言であれば1、そうでなければ0とする。")
+    deviation_schema = ResponseSchema(name="deviation_flg", description="2値の逸脱フラグ。判定対象の発言が本題から逸脱していれば1、そうでなければ0とする。")
+    output_parser = StructuredOutputParser.from_response_schemas([deviation_init_schema, deviation_schema])
+    format_instructions = output_parser.get_format_instructions()
+
+    # チェーンの作成
+    chain = template | model | output_parser
+
+    # 各発言に対してチェーンの実行
+    print(f"各発言に対してチェーンの実行中...")
+    results_deviation_init = []
+    results_deviation = []
+
+    for i in range(len(df_transcription)-1):
+        target = f"{df_transcription['speaker'][i]}「 {df_transcription['transcript'][i]}」"
+        history = ""
+        for history_i in range(i):
+            history += f"{df_transcription['speaker'][history_i]}「 {df_transcription['transcript'][history_i]}」"
+        result = chain.invoke(
+            {
+                "format_instructions": format_instructions,
+                "history": history,
+                "target": target
+            }
+        )
+        print(result)
+        results_deviation_init.append(result['deviation_init_flg'])
+        results_deviation.append(result['deviation_flg'])
+        print(f"判定対象の発言: {target}\n逸脱きっかけフラグ: {result['deviation_init_flg']}\n逸脱フラグ: {result['deviation_flg']}\n")
+    
+    df_transcription["deviation_init_flg"] = results_deviation_init.append(None)
+    df_transcription["deviation_flg"] = results_deviation.append(None)
+
+    print(f"結果を保存中...")
+    df_transcription.to_csv(f"{RESULT_DIR}/{file_name.split('.')[0]}_deviation.csv", index=False)
