@@ -15,12 +15,21 @@ import openai
 # from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
-def judge_conclusion_first():
+########################################################
+# 結論ファーストの判定
+########################################################
+def judge_conclusion_first(file_name: str):
     # 文字起こしデータの読み込み
     print(f"文字起こしデータの読み込み中...")
-    df_transcription = pd.read_csv(f"{PROCESSED_DIR}/sample_data.csv")[:10]
-
+    if file_name.endswith(".csv"):
+        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
+    elif file_name.endswith('.xlsx'):
+        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
+    else:
+        raise ValueError(f"Invalid file extension: {file_name}")
+    
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
         ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言が結論ファーストであるかどうかを判定し、結論ファーストならば1、そうでなければ0として出力してください。\n{format_instructions}"),
@@ -50,16 +59,84 @@ def judge_conclusion_first():
         results.append(result['conc_1st_flg'])
         print(f"発言: {text}\n結論ファーストフラグ: {result['conc_1st_flg']}\n")
 
-    df_transcription["is_conclusion_1st"] = results 
+    df_transcription["conc_1st_flg"] = results 
 
     print(f"結果を保存中...")
-    df_transcription.to_csv(f"{RESULT_DIR}/result_sample_data.csv", index=False)
+    df_transcription.to_csv(f"{RESULT_DIR}/{file_name.split('.')[0]}_conc_1st.csv", index=False)
 
-
-def judge_understood():
+########################################################
+# フィラーの判定
+########################################################
+def judge_filler(file_name: str):
     # 文字起こしデータの読み込み
     print(f"文字起こしデータの読み込み中...")
-    df_transcription = pd.read_csv(f"{PROCESSED_DIR}/sample_data.csv")[:10]
+    if file_name.endswith(".csv"):
+        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
+    elif file_name.endswith('.xlsx'):
+        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
+    else:
+        raise ValueError(f"Invalid file extension: {file_name}")
+    
+    # プロンプトテンプレートの作成
+    template = ChatPromptTemplate([
+        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言に「えー」「えっと」「えーっと」「あー」「そのー」「んーと」やその他のフィラーが含まれていれば1、そうでなければ0として出力してください。また、フィラーとして判定された単語も全て出力してください。\n{format_instructions}"),
+        ("human", "{user_input}"),
+    ])
+    # モデルの設定
+    model = ChatOpenAI(model_name="gpt-4o-mini", openai_api_key= OPENAI_API_KEY)
+    # 出力形式の設定
+    filler_flg_schema = ResponseSchema(name="filler_flg", description="2値のフィラーフラグ。フィラーが含まれていれば1、そうでなければ0とする。")
+    filler_words_schema = ResponseSchema(name="filler_words", description="フィラーとして判定された単語。複数個ある場合は、カンマ区切りで出力してください。存在しない場合は、空文字を出力してください。。")
+    output_parser = StructuredOutputParser.from_response_schemas([filler_flg_schema, filler_words_schema])
+    format_instructions = output_parser.get_format_instructions()
+
+    # チェーンの作成
+    chain = template | model | output_parser
+
+    # 各発言に対してチェーンの実行
+    print(f"使用するプロンプト:\n{template}")
+    print(f"各発言に対してチェーンの実行中...")
+    results_flg = []
+    results_words = []
+    df_transcription["filler_flg_true"] = (df_transcription["fillerNum"]>0).astype(int)
+    for _, row in df_transcription.iterrows():
+        text = row["transcript"]
+        result = chain.invoke(
+            {
+                "format_instructions": format_instructions,
+                "user_input": text
+            }
+        )
+        results_flg.append(int(result['filler_flg']))
+        results_words.append(result['filler_words'])
+        print(f"発言: {text}\nフィラー有無: {result['filler_flg']}\n正解: {row['filler_flg_true']}\n抽出されたフィラー: {result['filler_words']}\n")
+
+    df_transcription["filler_flg"] = results_flg
+    df_transcription["filler_words"] = results_words
+
+    # 正解率の計算
+    pred = df_transcription['filler_flg']
+    true = df_transcription['filler_flg_true']
+    print(f"正解率: {accuracy_score(true, pred)*100}%")
+    print(f"適合率: {precision_score(true, pred)*100}%")
+    print(f"再現率: {recall_score(true, pred)*100}%")
+
+    print(f"結果を保存中...")
+    df_transcription.to_csv(f"{RESULT_DIR}/{file_name.split('.')[0]}_filler.csv", index=False)
+
+
+########################################################
+# 理解の判定
+########################################################
+def judge_understood(file_name: str):
+    # 文字起こしデータの読み込み
+    print(f"文字起こしデータの読み込み中...")
+    if file_name.endswith(".csv"):
+        df_transcription = pd.read_csv(f"{PROCESSED_DIR}/{file_name}")
+    elif file_name.endswith('.xlsx'):
+        df_transcription = pd.read_excel(f"{PROCESSED_DIR}/{file_name}")
+    else:
+        raise ValueError(f"Invalid file extension: {file_name}")
 
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
@@ -98,7 +175,7 @@ def judge_understood():
         print(f"判定対象の発言: {target}\n直後の発言: {next}\n理解フラグ: {result['understood_flg']}\n")
     
     results.append(None)
-    df_transcription["is_understood"] = results 
+    df_transcription["understood_flg"] = results 
 
     print(f"結果を保存中...")
-    # df_transcription.to_csv(f"{RESULT_DIR}/result_sample_data.csv", index=False)
+    df_transcription.to_csv(f"{RESULT_DIR}/{file_name.split('.')[0]}_understood.csv", index=False)

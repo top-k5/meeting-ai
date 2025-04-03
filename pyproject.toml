@@ -11,6 +11,8 @@ dependencies = [
     "langchain-community>=0.3.20",
     "langchain-openai>=0.3.11",
     "openai>=1.69.0",
+    "openpyxl>=3.1.5",
     "pandas>=2.2.3",
     "python-dotenv>=1.1.0",
+    "scikit-learn>=1.6.1",
 ]
