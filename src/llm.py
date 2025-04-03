@@ -93,7 +93,7 @@ def judge_filler(file_name: str):
     chain = template | model | output_parser
 
     # 各発言に対してチェーンの実行
-    print(f"使用するプロンプト:\n{template}")
+    print(f"使用するプロンプト:\n{template}\n")
     print(f"各発言に対してチェーンの実行中...")
     results_flg = []
     results_words = []
@@ -186,7 +186,7 @@ def judge_deviation(file_name: str):
 
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
-        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言履歴を元に、判定対象の発言が本題から逸脱した内容であるかどうかを判定してください。なお、本題からの逸脱とは、会議を生産的に進める上で必要のない発言のことであり、その判断材料として判定対象の発言以前の会話履歴がuserから与えられます。\n{format_instructions}"),
+        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言履歴を元に、判定対象の発言が本題から逸脱した内容であるかどうかを判定してください。なお、本題からの逸脱とは、会議を生産的に進める上で議論するべき議題と、対象の発言の内容が相違していることを指します。\n{format_instructions}"),
         ("human", "判定対象の発言以前の会話履歴：\n{history}\n判定対象の発言：\n{target}"),
     ])
     # モデルの設定
@@ -202,6 +202,7 @@ def judge_deviation(file_name: str):
 
     # 各発言に対してチェーンの実行
     print(f"各発言に対してチェーンの実行中...")
+    print(f"使用するプロンプト:\n{template}\n")
     results_deviation = []
 
     for i in range(len(df_transcription)):
