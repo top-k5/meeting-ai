@@ -186,7 +186,7 @@ def judge_deviation(file_name: str):
 
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
-        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言履歴を元に、判定対象の発言が、逸脱のきっかけとなる発言であるかどうかを判定してください。さらに、判定対象の発言が本題から逸脱した内容であるかどうかも判定してください。なお、本題からの逸脱とは、会議を生産的に進める上で必要のない発言のことであり、その判断材料として判定対象の発言以前の会話履歴がuserから与えられます。\n{format_instructions}"),
+        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言履歴を元に、判定対象の発言が本題から逸脱した内容であるかどうかを判定してください。なお、本題からの逸脱とは、会議を生産的に進める上で必要のない発言のことであり、その判断材料として判定対象の発言以前の会話履歴がuserから与えられます。\n{format_instructions}"),
         ("human", "判定対象の発言以前の会話履歴：\n{history}\n判定対象の発言：\n{target}"),
     ])
     # モデルの設定
@@ -202,7 +202,6 @@ def judge_deviation(file_name: str):
 
     # 各発言に対してチェーンの実行
     print(f"各発言に対してチェーンの実行中...")
-    results_deviation_init = []
     results_deviation = []
 
     for i in range(len(df_transcription)):
@@ -217,11 +216,9 @@ def judge_deviation(file_name: str):
                 "target": target
             }
         )
-        results_deviation_init.append(result['deviation_init_flg'])
         results_deviation.append(result['deviation_flg'])
-        print(f"判定対象の発言: {target}\n逸脱きっかけフラグ: {result['deviation_init_flg']}\n逸脱フラグ: {result['deviation_flg']}\n")
+        print(f"判定対象の発言: {target}\n逸脱フラグ: {result['deviation_flg']}\n")
     
-    df_transcription["deviation_init_flg"] = results_deviation_init
     df_transcription["deviation_flg"] = results_deviation
 
     print(f"結果を保存中...")
