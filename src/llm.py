@@ -112,11 +112,11 @@ def judge_filler(file_name: str):
         results_flg.append(int(result['filler_flg']))
         results_words.append(result['filler_words'])
         results_num.append(int(result['filler_num']))
-        print(f"発言: {text}\nフィラー有無: {result['filler_flg']}\n有無の正解: {row['filler_flg_true']}\n抽出されたフィラー: {result['filler_words']}\nフィラーの個数: {result['filler_num']}\n個数の正解: {row['filler_num_true']}\n")
+        print(f"発言: {text}\nフィラー有無(予測): {result['filler_flg']}\nフィラー有無(正解): {row['filler_flg_true']}\n抽出されたフィラー: {result['filler_words']}\nフィラー個数(予測): {result['filler_num']}\nフィラー個数(正解): {row['filler_num_true']}\n")
 
+    df_transcription["filler_num"] = results_num
     df_transcription["filler_flg"] = results_flg
     df_transcription["filler_words"] = results_words
-    df_transcription["filler_num"] = results_num
     # 正解率の計算
     pred = df_transcription['filler_flg']
     true = df_transcription['filler_flg_true']
