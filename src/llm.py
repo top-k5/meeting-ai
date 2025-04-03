@@ -79,15 +79,16 @@ def judge_filler(file_name: str):
     
     # プロンプトテンプレートの作成
     template = ChatPromptTemplate([
-        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言に「えー」「えっと」「えーっと」「あー」「そのー」「んーと」やその他のフィラーが含まれていれば1、そうでなければ0として出力してください。また、フィラーとして判定された単語も全て出力してください。\n{format_instructions}"),
+        ("system", "あなたは、WEB会議の質を高めるためのコンサルタントです。あなたは、userから与えられたWEB会議内の発言に「えー」「えっと」「えーっと」「あー」「そのー」「んーと」やその他のフィラーが含まれていれば1、そうでなければ0として出力してください。また、フィラーとして判定された単語も全て出力してください。さらに、発言に含まれるフィラーの個数も出力してください。\n{format_instructions}"),
         ("human", "{user_input}"),
     ])
     # モデルの設定
     model = ChatOpenAI(model_name="gpt-4o-mini", openai_api_key= OPENAI_API_KEY)
     # 出力形式の設定
     filler_flg_schema = ResponseSchema(name="filler_flg", description="2値のフィラーフラグ。フィラーが含まれていれば1、そうでなければ0とする。")
-    filler_words_schema = ResponseSchema(name="filler_words", description="フィラーとして判定された単語。複数個ある場合は、カンマ区切りで出力してください。存在しない場合は、空文字を出力してください。。")
-    output_parser = StructuredOutputParser.from_response_schemas([filler_flg_schema, filler_words_schema])
+    filler_words_schema = ResponseSchema(name="filler_words", description="フィラーとして判定された単語。複数個ある場合は、カンマ区切りで出力してください。存在しない場合は、空文字を出力してください。")
+    filler_num_schema = ResponseSchema(name="filler_num", description="発言に含まれるフィラーの個数。整数のみ出力してください。")
+    output_parser = StructuredOutputParser.from_response_schemas([filler_flg_schema, filler_words_schema, filler_num_schema])
     format_instructions = output_parser.get_format_instructions()
 
     # チェーンの作成
@@ -98,7 +99,8 @@ def judge_filler(file_name: str):
     print(f"各発言に対してチェーンの実行中...")
     results_flg = []
     results_words = []
-    df_transcription["filler_flg_true"] = (df_transcription["fillerNum"]>0).astype(int)
+    results_num = []
+    df_transcription["filler_flg_true"] = (df_transcription["filler_num_true"]>0).astype(int)
     for _, row in df_transcription.iterrows():
         text = row["transcript"]
         result = chain.invoke(
@@ -109,11 +111,12 @@ def judge_filler(file_name: str):
         )
         results_flg.append(int(result['filler_flg']))
         results_words.append(result['filler_words'])
-        print(f"発言: {text}\nフィラー有無: {result['filler_flg']}\n正解: {row['filler_flg_true']}\n抽出されたフィラー: {result['filler_words']}\n")
+        results_num.append(int(result['filler_num']))
+        print(f"発言: {text}\nフィラー有無: {result['filler_flg']}\n有無の正解: {row['filler_flg_true']}\n抽出されたフィラー: {result['filler_words']}\nフィラーの個数: {result['filler_num']}\n個数の正解: {row['filler_num_true']}\n")
 
     df_transcription["filler_flg"] = results_flg
     df_transcription["filler_words"] = results_words
-
+    df_transcription["filler_num"] = results_num
     # 正解率の計算
     pred = df_transcription['filler_flg']
     true = df_transcription['filler_flg_true']
